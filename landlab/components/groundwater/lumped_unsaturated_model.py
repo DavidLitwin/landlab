@@ -148,9 +148,9 @@ class LumpedUnsaturatedZone(Component):
 
 
 
-    def __init__(self, grid, porosity=0.5, soil_wilting_point=0.18,
-            soil_field_capacity=0.3, plant_rooting_depth=1.0, ETmax=2.0e-8,
-            hydraulic_conductivity=0.005):
+    def __init__(self, grid, porosity=0.2, soil_wilting_point=0.18,
+            soil_field_capacity=0.3,ETmax=2.0e-8,hydraulic_conductivity=0.001,
+            rooting_function=0.97, plant_rooting_depth=1.0,rooting=True):
 
         # Store grid
         self._grid = grid
@@ -175,13 +175,19 @@ class LumpedUnsaturatedZone(Component):
             self.wtable = self.grid.at_node["water_table__elevation"]
         else:
             self.wtable = self.grid.add_zeros("node", "water_table__elevation")
-            self.wtable[grid.closed_boundary_nodes] = 0.0
+        self.wtable[grid.closed_boundary_nodes] = 0.0
+
+        if "aquifer_base__elevation" in self.grid.at_node:
+            self.base = self.grid.at_node["aquifer_base__elevation"]
+        else:
+            self.base = self.grid.add_zeros("node", "aquifer_base__elevation")
+        self.base[grid.closed_boundary_nodes] = 0.0
 
         if "unsaturated__thickness" in self.grid.at_node:
             self.thickness = self.grid.at_node["unsaturated__thickness"]
         else:
             self.thickness = self.elev - self.wtable
-            self.thickness[grid.closed_boundary_nodes] = 0.0
+        self.thickness[grid.closed_boundary_nodes] = 0.0
 
         if "infiltration__rate" in self.grid.at_node:
             self.f = self.grid.at_node["infiltration__rate"]
@@ -192,7 +198,7 @@ class LumpedUnsaturatedZone(Component):
             self.sat = self.grid.at_node["relative_saturation"]
         else:
             self.sat = self.sf*self.grid.add_ones("node", "relative_saturation")
-            self.sat[grid.closed_boundary_nodes] = 0.0
+        self.sat[grid.closed_boundary_nodes] = 0.0
 
         if "soil_water__storage" in self.grid.at_node:
             self.S = self.grid.at_node["soil_water__storage"]
