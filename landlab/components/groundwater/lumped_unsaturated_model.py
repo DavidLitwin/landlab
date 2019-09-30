@@ -9,7 +9,13 @@ import numpy as np
 from landlab import RasterModelGrid, Component
 from landlab.utils import return_array_at_node
 
+# regularization functions used to deal with numerical demons of seepage
+def _regularize_G(u,reg_factor):
+    ''' Smooths transition of step function with an exponential. 0<=u<=1. '''
+    return np.exp(-(1-u)/reg_factor)
+
 def _regularize_R(u):
+    ''' ramp function on u '''
     return u*np.greater_equal(u,0)
 
 def _EvapotranspirationLoss(p,S,Sw,Sf,St,ETmax):
@@ -27,6 +33,17 @@ def _CapillaryRise(S,Sw,Sf,St,ETmax,Zwt,Z,hroot):
                 _regularize_R((S[i]-Sw[i])/(Sf[i]-Sw[i]))*ETmax[i],ETmax[i]))
 
     qc[~i] = ETmax[~i]
+    return qc
+
+def _CapillaryRiseRoots(S,St,Sw,beta,wt,base,elev,ETmax):
+    qc = np.zeros_like(S)
+    i = St>0.0
+
+    x = np.minimum((St[i]-S[i])/(St[i]-Sw[i]),1)
+    root_prop = (1-beta**(100*(elev-base))) - (1-beta**(100*(elev-wt)))
+    qc[i] = ETmax[i]*root_prop[i]*_regularize_G(x,1E-2)
+    qc[~i] = ETmax[~i]
+
     return qc
 
 def _LeakageLoss(S,Sf,St,Ksat,dt):
@@ -143,8 +160,10 @@ class LumpedUnsaturatedZone(Component):
         self.sw = return_array_at_node(grid, soil_wilting_point)
         self.sf = return_array_at_node(grid, soil_field_capacity)
         self.dr = return_array_at_node(grid, plant_rooting_depth)
+        self.beta = return_array_at_node(grid,rooting_function)
         self.ETmax = return_array_at_node(grid, ETmax)
         self.Ksat = return_array_at_node(grid, hydraulic_conductivity)
+        self.rooting = rooting
 
         # Create fields:
         if "topographic__elevation" in self.grid.at_node:
@@ -201,7 +220,12 @@ class LumpedUnsaturatedZone(Component):
 
         self.qet = _EvapotranspirationLoss(intensity,self.S,Sw,Sf,St,self.ETmax)
         self.ql = _LeakageLoss(self.S,Sf,St,self.Ksat,dt)
-        self.qc = _CapillaryRise(self.S,Sw,Sf,St,self.ETmax,self.wtable,self.elev,self.dr)
+
+        if self.rooting:
+            self.qc = _CapillaryRiseRoots(self.S,St,Sw,self.beta,self.wtable,self.base,self.elev,self.ETmax)
+        else:
+            self.qc = _CapillaryRise(self.S,Sw,Sf,St,self.ETmax,self.wtable,self.elev,self.dr)
+
         self.S += self.f*dt + self.qc*dt - self.qet*dt - self.ql*dt
 
         j = self.thickness > 0.0
