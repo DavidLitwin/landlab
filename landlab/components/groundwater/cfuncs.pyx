@@ -11,18 +11,18 @@ ctypedef np.double_t DTYPE_FLOAT_t
 
 # @cython.boundscheck(False)
 # @cython.wraparound(False)
-# def _calc_grad_at_link(np.ndarray[DTYPE_FLOAT_t, ndim=1] values,
-#           np.ndarray[DTYPE_INT_t, ndim=1] node_head,
-#           np.ndarray[DTYPE_INT_t, ndim=1] node_tail,
-#           np.ndarray[DTYPE_FLOAT_t, ndim=1] link_lengths,
-#           ):
-#
-# 	cdef np.ndarray[DTYPE_FLOAT_t, ndim=1] out = np.empty(len(node_head), dtype=float)
-# 	return np.divide(
-# 		values[node_head] - values[node_tail],
-# 		link_lengths,
-# 		out=out,
-# 	)
+def _calc_grad_at_link(np.ndarray[DTYPE_FLOAT_t, ndim=1] values,
+          np.ndarray[DTYPE_INT_t, ndim=1] node_head,
+          np.ndarray[DTYPE_INT_t, ndim=1] node_tail,
+          np.ndarray[DTYPE_FLOAT_t, ndim=1] link_lengths,
+          ):
+
+	cdef np.ndarray[DTYPE_FLOAT_t, ndim=1] out = np.empty(len(node_head), dtype=float)
+	return np.divide(
+		values[node_head] - values[node_tail],
+		link_lengths,
+		out=out,
+	)
 
 
 # @cython.boundscheck(False)
@@ -49,17 +49,18 @@ def _calc_flux_div_at_node(np.ndarray[DTYPE_FLOAT_t, ndim=1] unit_flux,
   out[node_at_cell] = buf / area_of_cell
   return out
 
-# _calc_net_face_flux_at_cell
-# if out is None:
-#     out = grid.empty(at="cell")
-# total_flux = unit_flux_at_faces * grid.length_of_face
-# out = np.zeros(grid.number_of_cells)
-# fac = grid.faces_at_cell
-# for c in range(grid.link_dirs_at_node.shape[1]):
-#     out -= total_flux[fac[:, c]] * grid.link_dirs_at_node[grid.node_at_cell, c]
-# return out
-#
-# out[grid.node_at_cell] = (
-#     _calc_net_face_flux_at_cell(grid, unit_flux[grid.link_at_face])
-#     / grid.area_of_cell
-# )
+def _map_value_at_max_node_to_link(np.ndarray[DTYPE_FLOAT_t, ndim=1] controls,
+          np.ndarray[DTYPE_FLOAT_t, ndim=1] values,
+          np.ndarray[DTYPE_INT_t, ndim=1] node_at_link_head,
+          np.ndarray[DTYPE_INT_t, ndim=1] node_at_link_tail,
+          ):
+
+
+  cdef np.ndarray[DTYPE_FLOAT_t, ndim=1] head_control = controls[node_at_link_head]
+  cdef np.ndarray[DTYPE_FLOAT_t, ndim=1] tail_control = controls[node_at_link_tail]
+  cdef np.ndarray[DTYPE_FLOAT_t, ndim=1] head_vals = values[node_at_link_head]
+  cdef np.ndarray[DTYPE_FLOAT_t, ndim=1] tail_vals = values[node_at_link_tail]
+  cdef np.ndarray[DTYPE_FLOAT_t, ndim=1] out = np.empty(len(node_at_link_head), dtype=float)
+
+  out[:] = np.where(tail_control > head_control, tail_vals, head_vals)
+  return out
